@@ -50,11 +50,9 @@ button:disabled{opacity:.6;cursor:wait}
 <div id="loading"><div class="spin"></div><div id="tLoad"></div></div>
 
 <script>
-/* ============================================================
-   
-   ============================================================ */
+
 (function(){ // gói toàn bộ trong hàm: không để lại biến toàn cục, tránh xung đột với giao diện ứng dụng
-    const API_URL = 'https://script.google.com/macros/s/AKfycbz6vSyVcL9hXhjiHbn0ECwIN-v81xTDv_hYfM9t1F3YHz4M78nCGlBJezwbo7Ggm455/exec';
+    const API_URL = 'https://script.google.com/macros/s/AKfycbz0ii0PSx3RDNaGKRmcUWGHwKt63P_nUZOUNmz6FaJSCaCVWcvm78IpqrntbweEegPd/exec';
 
 const T={
  vi:{title:'Hệ thống thông tin đường cao tốc Việt Nam',sub:'Đăng nhập để sử dụng hệ thống',user:'Tên đăng nhập',pass:'Mật khẩu',rem:'Ghi nhớ trên thiết bị này',
@@ -101,15 +99,30 @@ function loadLeaflet(){ return new Promise(res=>{ let i=0;
   const next=()=>{ if(window.L) return res(true); if(i>=LEAFLET_URLS.length) return res(false);
     const sc=document.createElement('script'); sc.src=LEAFLET_URLS[i++]; sc.onload=()=>{ if(window.L) res(true); else next(); }; sc.onerror=next; document.head.appendChild(sc); };
   next(); }); }
-
+/* Kiểm tra cú pháp mã ứng dụng trước khi chạy; nếu lỗi thì chỉ rõ dòng và ký tự lạ (chẩn đoán lỗi sao chép/dán) */
+function checkScripts(html){
+  const re=/<script>([\s\S]*?)<\/script>/g; let mm;
+  while((mm=re.exec(html))){ const code=mm[1], base=html.slice(0,mm.index+8).split('\n').length;
+    try{ new Function(code); continue; }catch(e){
+      const L=code.split('\n'), want=e.message; let lo=1,hi=L.length;
+      while(lo<hi){ const mid=(lo+hi)>>1; let same=false; try{ new Function(L.slice(0,mid).join('\n')); }catch(x){ same=x.message===want; } if(same) hi=mid; else lo=mid+1; }
+      const line=L[lo-1]||'', odd=[];
+      for(let k=0;k<line.length;k++){ const cc=line.charCodeAt(k); if(cc>126||(cc<32&&cc!==9)) odd.push((k+1)+':U+'+cc.toString(16).toUpperCase().padStart(4,'0')); }
+      return 'App – '+want+' @ '+(base+lo-1)+'\n'+line.slice(0,240)+(odd.length?'\n['+odd.slice(0,8).join(' ')+']':'')+'\n< '+(L[lo-2]||'').slice(-160);
+    } }
+  return null;
+}
+/* Tải giao diện ứng dụng từ Apps Script và thay thế trang này */
 async function openApp(token){
   busy(true);
   const r=await api('getApp',{token:token||''});
   if(!r.ok||!r.html){ busy(false);
     if(r.error==='AUTH'){ st.del('ct_token'); msg(T[LANG].auth); } else msg(r.error==='NETWORK'?T[LANG].net:T[LANG].appErr);
     return; }
+  const bad=checkScripts(r.html);
+  if(bad){ busy(false); $('err').style.whiteSpace='pre-wrap'; $('err').style.fontFamily='monospace'; $('err').style.fontSize='11px'; msg(bad); return; }
   if(!await loadLeaflet()){ busy(false); msg(T[LANG].leaf); return; }
- 
+  // Leaflet đã có sẵn: bỏ thẻ script CDN trong trang ứng dụng để không tải lại
   const html=r.html.split('__VFIS_API__').join(API_URL).replace(/<script src="https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/leaflet\/[^"]+"><\/script>/,'');
   document.open(); document.write(html); document.close();
 }
