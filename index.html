@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hệ thống thông tin đường cao tốc Việt Nam</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#1c2430}
+body{display:flex;align-items:center;justify-content:center;background:#0b3d78;
+  background-image:radial-gradient(circle at 20% 20%,#1366c2 0,transparent 45%),radial-gradient(circle at 85% 80%,#0a2f5c 0,transparent 50%),linear-gradient(135deg,#0b3d78,#0b5cad)}
+.road{position:fixed;inset:auto 0 0 0;height:90px;background:repeating-linear-gradient(90deg,transparent 0 60px,rgba(255,255,255,.18) 60px 120px);
+  mask:linear-gradient(transparent,#000 40%);-webkit-mask:linear-gradient(transparent,#000 40%);opacity:.6;pointer-events:none}
+.box{position:relative;background:#fff;border-radius:16px;width:min(400px,92vw);padding:26px 24px 18px;box-shadow:0 18px 60px rgba(0,0,0,.35)}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.logo{font-size:34px;line-height:1}
+h1{font-size:19px;margin:8px 0 2px;color:#0b3d78;line-height:1.3}
+.sub{font-size:12px;color:#667085;margin-bottom:14px}
+.lang{display:flex;border:1px solid #cbd5e1;border-radius:7px;overflow:hidden;flex:none}
+.lang button{border:none;background:#fff;padding:4px 9px;font:inherit;font-size:12px;font-weight:700;color:#475467;cursor:pointer}
+.lang button.on{background:#0b5cad;color:#fff}
+label{display:block;font-size:12.5px;color:#475467;margin:10px 0 4px}
+input[type=text],input[type=password]{width:100%;padding:10px 11px;border:1px solid #d0d5dd;border-radius:9px;font:inherit;font-size:14px}
+input:focus{outline:2px solid #9cc3ee;border-color:#0b5cad}
+.rem{display:flex;gap:7px;align-items:center;margin-top:10px;font-size:12.5px;color:#475467}
+.err{min-height:20px;font-size:12.5px;color:#b42318;margin-top:8px}
+.btns{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;flex-wrap:wrap}
+button.b{font:inherit;font-size:13.5px;padding:9px 14px;border-radius:9px;border:1px solid #d0d5dd;background:#fff;cursor:pointer}
+button.p{background:#0b5cad;border-color:#0b5cad;color:#fff;font-weight:600}
+button:disabled{opacity:.6;cursor:wait}
+.meta{margin-top:14px;padding-top:10px;border-top:1px solid #eef1f5;font-size:11.5px;color:#667085;line-height:1.5}
+#loading{display:none;position:fixed;inset:0;background:rgba(11,61,120,.92);color:#fff;align-items:center;justify-content:center;flex-direction:column;gap:12px;font-size:14px;z-index:9}
+.spin{width:34px;height:34px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:s 1s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="road"></div>
+<form class="box" id="f" autocomplete="on">
+  <div class="top"><div class="logo">🛣️</div><div class="lang"><button type="button" id="lVI">VI</button><button type="button" id="lEN">EN</button></div></div>
+  <h1 id="tTitle"></h1>
+  <div class="sub" id="tSub"></div>
+  <label for="u" id="tUser"></label><input type="text" id="u" autocomplete="username" required>
+  <label for="p" id="tPass"></label><input type="password" id="p" autocomplete="current-password" required>
+  <label class="rem"><input type="checkbox" id="r"> <span id="tRem"></span></label>
+  <div class="err" id="err"></div>
+  <div class="btns"><button type="button" class="b" id="guest" style="display:none"></button><button type="submit" class="b p" id="go"></button></div>
+  <div class="meta"><div id="cnt"></div><div id="tCredit"></div></div>
+</form>
+<div id="loading"><div class="spin"></div><div id="tLoad"></div></div>
+
+<script>
+/* ============================================================
+   TRANG ĐĂNG NHẬP 
+   
+   ============================================================ */
+(function(){ // 
+    const API_URL = 'https://script.google.com/macros/s/AKfycbweQbJx8wxWj8_lKVT1OjlvGiqOhnvylGKXDwjK1uDFfzJAQVlgi_gBSgbmXrJsRW9b/exec';
+
+const T={
+ vi:{title:'Hệ thống thông tin đường cao tốc Việt Nam',sub:'Đăng nhập để sử dụng hệ thống',user:'Tên đăng nhập',pass:'Mật khẩu',rem:'Ghi nhớ trên thiết bị này',
+   go:'Đăng nhập',guest:'Xem không đăng nhập',load:'Đang tải hệ thống…',checking:'Đang kiểm tra…',net:'Không kết nối được máy chủ',
+   noapi:'Chưa cấu hình API_URL trong index.html',auth:'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại',appErr:'Không tải được giao diện ứng dụng',
+   cnt:c=>`👁 ${c.total.toLocaleString('vi-VN')} lượt truy cập · hôm nay ${c.today.toLocaleString('vi-VN')} · đang xem ${c.online}`,
+   credit:'TS. Đặng Minh Tân – Bộ môn Đường bộ – Sân bay, Khoa Công trình và Môi trường, Trường Đại học Giao thông Vận tải',
+   errs:{'Sai tên đăng nhập hoặc mật khẩu':'Sai tên đăng nhập hoặc mật khẩu'}},
+ en:{title:'Vietnam Freeway Information System',sub:'Sign in to use the system',user:'Username',pass:'Password',rem:'Remember on this device',
+   go:'Sign in',guest:'Continue without signing in',load:'Loading the system…',checking:'Checking…',net:'Cannot reach the server',
+   noapi:'API_URL is not configured in index.html',auth:'Your session has expired, please sign in again',appErr:'Could not load the application',
+   cnt:c=>`👁 ${c.total.toLocaleString('en-US')} visits · today ${c.today.toLocaleString('en-US')} · online ${c.online}`,
+   credit:'Dr. Dang Minh Tan – Dept. of Highway & Airport Engineering, Faculty of Civil & Environmental Engineering, University of Transport and Communications',
+   errs:{'Sai tên đăng nhập hoặc mật khẩu':'Incorrect username or password','Nhập tên đăng nhập và mật khẩu':'Enter username and password',
+     'Tài khoản tạm khoá 10 phút do nhập sai nhiều lần':'Account locked for 10 minutes after repeated failures','Tài khoản đã bị vô hiệu hoá':'This account has been disabled'}}
+};
+const $=id=>document.getElementById(id);
+const st={get:k=>{try{return localStorage.getItem(k)||sessionStorage.getItem(k);}catch(e){return null;}},
+  set:(k,v,keep)=>{try{(keep?localStorage:sessionStorage).setItem(k,v);}catch(e){}},
+  del:k=>{try{localStorage.removeItem(k);sessionStorage.removeItem(k);}catch(e){}}};
+let LANG=(()=>{try{return localStorage.getItem('vfis_lang')||'vi';}catch(e){return 'vi';}})();
+let CFG=null;
+
+function paint(){
+  const L=T[LANG]; document.documentElement.lang=LANG; document.title=L.title;
+  $('tTitle').textContent=L.title; $('tSub').textContent=L.sub; $('tUser').textContent=L.user; $('tPass').textContent=L.pass;
+  $('tRem').textContent=L.rem; $('go').textContent=L.go; $('guest').textContent=L.guest; $('tLoad').textContent=L.load; $('tCredit').textContent=L.credit;
+  $('lVI').classList.toggle('on',LANG==='vi'); $('lEN').classList.toggle('on',LANG==='en');
+  if(CFG&&CFG.counter) $('cnt').textContent=L.cnt(CFG.counter);
+}
+function setLang(l){ LANG=l; try{localStorage.setItem('vfis_lang',l);}catch(e){} paint(); $('err').textContent=''; }
+$('lVI').onclick=()=>setLang('vi'); $('lEN').onclick=()=>setLang('en');
+const msg=t=>{$('err').textContent=t||'';};
+
+async function api(action,data){
+  try{ const r=await fetch(API_URL,{method:'POST',body:JSON.stringify(Object.assign({action},data||{}))}); return await r.json(); }
+  catch(e){ return {ok:false,error:'NETWORK'}; }
+}
+function busy(on){ $('loading').style.display=on?'flex':'none'; $('go').disabled=on; $('guest').disabled=on; }
+
+
+async function openApp(token){
+  busy(true);
+  const r=await api('getApp',{token:token||''});
+  if(!r.ok||!r.html){ busy(false);
+    if(r.error==='AUTH'){ st.del('ct_token'); msg(T[LANG].auth); } else msg(r.error==='NETWORK'?T[LANG].net:T[LANG].appErr);
+    return; }
+  const html=r.html.split('__VFIS_API__').join(API_URL);
+  document.open(); document.write(html); document.close();
+}
+
+$('f').onsubmit=async e=>{
+  e.preventDefault(); if(!API_URL){ msg(T[LANG].noapi); return; }
+  $('go').disabled=true; msg(T[LANG].checking);
+  const r=await api('login',{username:$('u').value,password:$('p').value});
+  $('go').disabled=false;
+  if(!r.ok){ msg(r.error==='NETWORK'?T[LANG].net:((T[LANG].errs||{})[r.error]||r.error)); return; }
+  st.set('ct_token',r.token,$('r').checked); try{sessionStorage.removeItem('vfis_guest');}catch(e){}
+  $('p').value=''; msg(''); openApp(r.token);
+};
+$('guest').onclick=()=>{ try{sessionStorage.setItem('vfis_guest','1');}catch(e){} openApp(''); };
+
+(async function start(){
+  paint();
+  if(!API_URL){ msg(T[LANG].noapi); return; }
+  CFG=await api('config');
+  if(!CFG.ok){ msg(T[LANG].net); CFG=null; return; }
+  paint();
+  $('guest').style.display=CFG.requireLogin?'none':'';
+  const tk=st.get('ct_token');
+  if(tk){ const me=await api('me',{token:tk}); if(me.ok){ openApp(tk); return; } st.del('ct_token'); }
+  let guest=false; try{guest=sessionStorage.getItem('vfis_guest')==='1';}catch(e){}
+  if(guest&&!CFG.requireLogin){ openApp(''); return; }
+  $('u').focus();
+})();
+})();
+</script>
+</body>
+</html>
