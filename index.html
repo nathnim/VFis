@@ -51,22 +51,21 @@ button:disabled{opacity:.6;cursor:wait}
 
 <script>
 /* ============================================================
-   TRANG ĐĂNG NHẬP 
    
    ============================================================ */
-(function(){ // 
-    const API_URL = 'https://script.google.com/macros/s/AKfycbweQbJx8wxWj8_lKVT1OjlvGiqOhnvylGKXDwjK1uDFfzJAQVlgi_gBSgbmXrJsRW9b/exec';
+(function(){ // gói toàn bộ trong hàm: không để lại biến toàn cục, tránh xung đột với giao diện ứng dụng
+    const API_URL = 'https://script.google.com/macros/s/AKfycbwOnrKpuSNcTweYFsQxxpaabNoGsq579KPAC5caFtNd8K6peuyVjkIScLqmCnVCaAQ1/exec';
 
 const T={
  vi:{title:'Hệ thống thông tin đường cao tốc Việt Nam',sub:'Đăng nhập để sử dụng hệ thống',user:'Tên đăng nhập',pass:'Mật khẩu',rem:'Ghi nhớ trên thiết bị này',
    go:'Đăng nhập',guest:'Xem không đăng nhập',load:'Đang tải hệ thống…',checking:'Đang kiểm tra…',net:'Không kết nối được máy chủ',
-   noapi:'Chưa cấu hình API_URL trong index.html',auth:'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại',appErr:'Không tải được giao diện ứng dụng',
+   noapi:'Chưa cấu hình API_URL trong index.html',leaf:'Không tải được thư viện bản đồ (Leaflet). Kiểm tra kết nối mạng hoặc tường lửa đang chặn cdnjs / unpkg / jsdelivr.',auth:'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại',appErr:'Không tải được giao diện ứng dụng',
    cnt:c=>`👁 ${c.total.toLocaleString('vi-VN')} lượt truy cập · hôm nay ${c.today.toLocaleString('vi-VN')} · đang xem ${c.online}`,
    credit:'TS. Đặng Minh Tân – Bộ môn Đường bộ – Sân bay, Khoa Công trình và Môi trường, Trường Đại học Giao thông Vận tải',
    errs:{'Sai tên đăng nhập hoặc mật khẩu':'Sai tên đăng nhập hoặc mật khẩu'}},
  en:{title:'Vietnam Freeway Information System',sub:'Sign in to use the system',user:'Username',pass:'Password',rem:'Remember on this device',
    go:'Sign in',guest:'Continue without signing in',load:'Loading the system…',checking:'Checking…',net:'Cannot reach the server',
-   noapi:'API_URL is not configured in index.html',auth:'Your session has expired, please sign in again',appErr:'Could not load the application',
+   noapi:'API_URL is not configured in index.html',leaf:'Could not load the map library (Leaflet). Check your connection or whether a firewall blocks cdnjs / unpkg / jsdelivr.',auth:'Your session has expired, please sign in again',appErr:'Could not load the application',
    cnt:c=>`👁 ${c.total.toLocaleString('en-US')} visits · today ${c.today.toLocaleString('en-US')} · online ${c.online}`,
    credit:'Dr. Dang Minh Tan – Dept. of Highway & Airport Engineering, Faculty of Civil & Environmental Engineering, University of Transport and Communications',
    errs:{'Sai tên đăng nhập hoặc mật khẩu':'Incorrect username or password','Nhập tên đăng nhập và mật khẩu':'Enter username and password',
@@ -97,13 +96,21 @@ async function api(action,data){
 function busy(on){ $('loading').style.display=on?'flex':'none'; $('go').disabled=on; $('guest').disabled=on; }
 
 
+const LEAFLET_URLS=['https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js','https://unpkg.com/leaflet@1.9.4/dist/leaflet.js','https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js'];
+function loadLeaflet(){ return new Promise(res=>{ let i=0;
+  const next=()=>{ if(window.L) return res(true); if(i>=LEAFLET_URLS.length) return res(false);
+    const sc=document.createElement('script'); sc.src=LEAFLET_URLS[i++]; sc.onload=()=>{ if(window.L) res(true); else next(); }; sc.onerror=next; document.head.appendChild(sc); };
+  next(); }); }
+
 async function openApp(token){
   busy(true);
   const r=await api('getApp',{token:token||''});
   if(!r.ok||!r.html){ busy(false);
     if(r.error==='AUTH'){ st.del('ct_token'); msg(T[LANG].auth); } else msg(r.error==='NETWORK'?T[LANG].net:T[LANG].appErr);
     return; }
-  const html=r.html.split('__VFIS_API__').join(API_URL);
+  if(!await loadLeaflet()){ busy(false); msg(T[LANG].leaf); return; }
+ 
+  const html=r.html.split('__VFIS_API__').join(API_URL).replace(/<script src="https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/leaflet\/[^"]+"><\/script>/,'');
   document.open(); document.write(html); document.close();
 }
 
